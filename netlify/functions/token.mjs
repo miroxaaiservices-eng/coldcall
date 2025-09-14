@@ -1,15 +1,22 @@
 import twilio from "twilio";
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS"
+};
+
 export async function handler(event) {
-  if (event.httpMethod === "OPTIONS") return { statusCode: 200 };
+  if (event.httpMethod === "OPTIONS") {
+    return { statusCode: 200, headers: corsHeaders };
+  }
 
   try {
-    const accountSid = process.env.TWILIO_ACCOUNT_SID;   // ACxxxxxxxx
-    const apiKeySid  = process.env.TWILIO_API_KEY_SID;   // SKxxxxxxxx
-    const apiSecret  = process.env.TWILIO_API_KEY_SECRET;// API Key secret
-    const appSid     = process.env.TWILIO_TWIML_APP_SID; // APxxxxxxxx
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;    // AC...
+    const apiKeySid  = process.env.TWILIO_API_KEY_SID;    // SK...
+    const apiSecret  = process.env.TWILIO_API_KEY_SECRET; // secret
+    const appSid     = process.env.TWILIO_TWIML_APP_SID;  // AP...
 
-    // optional identity query param: ?identity=sales
     const qs = new URLSearchParams(event.queryStringParameters || {});
     const baseIdentity = qs.get("identity") || "agent";
     const identity = `${baseIdentity}-${Math.random().toString(36).slice(2,8)}`;
@@ -20,22 +27,24 @@ export async function handler(event) {
 
     const token = new AccessToken(accountSid, apiKeySid, apiSecret, {
       identity,
-      ttl: 3600 // 1 hour
+      ttl: 3600
     });
 
-    const voiceGrant = new VoiceGrant({
+    token.addGrant(new VoiceGrant({
       outgoingApplicationSid: appSid,
       incomingAllow: false
-    });
-
-    token.addGrant(voiceGrant);
+    }));
 
     return {
       statusCode: 200,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...corsHeaders },
       body: JSON.stringify({ token: token.toJwt(), identity })
     };
   } catch (e) {
-    return { statusCode: 500, body: JSON.stringify({ error: e.message }) };
+    return {
+      statusCode: 500,
+      headers: corsHeaders,
+      body: JSON.stringify({ error: e.message })
+    };
   }
 }
